@@ -108,5 +108,9 @@ SettingsScreen::Tab settings::tabs::InternetTab::build(SettingsScreen& screen) {
         t.items.push_back(std::move(it));
     }
 
+    extractReadouts(t, screen,
+                    i18n.tr("settings.internet.connection_details", "Connection Details"),
+                    i18n.tr("settings.internet.connection_details_desc",
+                            "IP address, MAC address and DNS for the current connection."));
     return t;
 }

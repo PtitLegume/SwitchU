@@ -4,6 +4,13 @@
 
 namespace settings::tabs {
 
+// Moves read-only rows onto a detail page behind one action; no-op below three.
+// Never call it when a callback holds a reference into tab.items: it would dangle.
+void extractReadouts(SettingsScreen::Tab& tab,
+                     SettingsScreen& screen,
+                     const std::string& title,
+                     const std::string& description);
+
 class SystemTab {
 public:
     static SettingsScreen::Tab build(SettingsScreen& screen);

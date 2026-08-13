@@ -281,5 +281,9 @@ SettingsScreen::Tab settings::tabs::SystemTab::build(SettingsScreen& screen) {
         t.items.push_back(std::move(it));
     }
 
+    extractReadouts(t, screen,
+                    i18n.tr("settings.system.console_information", "Console Information"),
+                    i18n.tr("settings.system.console_information_desc",
+                            "Firmware, serial number, nickname and other hardware details."));
     return t;
 }
