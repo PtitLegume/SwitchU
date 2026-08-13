@@ -3,9 +3,7 @@
 namespace settings::debug {
 
 struct SettingsGlassTuning {
-    // One overlapping half-resolution pass avoids the six full-screen passes
-    // previously produced by radius 4 while the local glass shader preserves
-    // the pronounced frosted look.
+    // One half-resolution pass; the glass shader carries the frosted look.
     float preBlurRadius = 2.5f;
     int blurIterations = 1;
     float shaderBlurIntensity = 2.25f;

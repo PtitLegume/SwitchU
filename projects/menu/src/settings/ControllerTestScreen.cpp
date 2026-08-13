@@ -215,8 +215,6 @@ void ControllerTestScreen::update(float dt) {
     } else if (m_activeStick == ActiveStick::Right) {
         x = m_input->rightStickX(); y = m_input->rightStickY();
     }
-    // A diagnostic view must display the hardware sample exactly. Filtering
-    // made fast circular movements visibly lag behind and miss the edge.
     m_stickX = x;
     m_stickY = y;
 }
@@ -315,7 +313,6 @@ void ControllerTestScreen::drawFullscreenTouch(nxui::Renderer& ren, float alpha)
     nxui::Rect screen{0.f, 0.f, 1280.f, 720.f};
     ren.drawRect(screen, m_theme->background.withAlpha(0.98f * a));
 
-    // Sparse guide grid makes edge and corner coverage easy to inspect.
     const nxui::Color guide = m_theme->panelBorder.withAlpha(0.18f * a);
     for (int x = 160; x < 1280; x += 160)
         ren.drawLine({(float)x, 0.f}, {(float)x, 720.f}, guide, 1.f);

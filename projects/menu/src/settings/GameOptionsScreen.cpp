@@ -32,9 +32,7 @@ void GameOptionsScreen::setGame(const GameInfo& info) {
 
 void GameOptionsScreen::buildTabs() {
     auto& i18n = nxui::I18n::instance();
-    // buildTabs() is also called when translations are refreshed. Rebuild
-    // from a clean snapshot instead of appending to the previous language's
-    // tabs, otherwise every language change duplicates the rail.
+    // Also called on a translation refresh: rebuild clean or the rail duplicates.
     m_tabs.clear();
 
     Tab data;
