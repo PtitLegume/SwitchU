@@ -6,6 +6,12 @@
 
 namespace settings::widgets {
 
+class DepthScalable {
+public:
+    virtual ~DepthScalable() = default;
+    virtual void setDepthScale(float scale) = 0;
+};
+
 struct SettingWidgetContext {
     nxui::Font** font = nullptr;
     nxui::Font** smallFont = nullptr;

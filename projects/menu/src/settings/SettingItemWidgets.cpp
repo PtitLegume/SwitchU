@@ -1,7 +1,7 @@
 #include "SettingItemWidgets.hpp"
-#include "widgets/ActionButton.hpp"
 
 #include <nxui/core/Renderer.hpp>
+#include <nxui/core/Animation.hpp>
 #include <nxui/widgets/Label.hpp>
 #include <nxui/widgets/GlassBox.hpp>
 #include <nxui/widgets/GlassWidget.hpp>
@@ -51,7 +51,6 @@ std::string fitTextToWidthUncached(nxui::Font* font, const std::string& text,
     return kEllipsis;
 }
 
-// Returns a fitted string, using a cache to avoid repeated measurements of the same text.
 std::string fitTextToWidth(nxui::Font* font, const std::string& text, float scale, float maxWidth) {
     if (!font || text.empty() || maxWidth <= 4.f)
         return {};
@@ -66,6 +65,19 @@ std::string fitTextToWidth(nxui::Font* font, const std::string& text, float scal
         g_fitCache.clear();
     g_fitCache.emplace(std::move(key), result);
     return result;
+}
+
+void drawChevron(nxui::Renderer& ren, const nxui::Vec2& c, float size,
+                 const nxui::Color& col, bool down) {
+    const float h = size * 0.5f;
+    const float t = settings::metrics::kChevronThickness;
+    if (down) {
+        ren.drawLine({c.x - h, c.y - h * 0.5f}, {c.x, c.y + h * 0.5f}, col, t);
+        ren.drawLine({c.x, c.y + h * 0.5f}, {c.x + h, c.y - h * 0.5f}, col, t);
+    } else {
+        ren.drawLine({c.x - h * 0.5f, c.y - h}, {c.x + h * 0.5f, c.y}, col, t);
+        ren.drawLine({c.x + h * 0.5f, c.y}, {c.x - h * 0.5f, c.y + h}, col, t);
+    }
 }
 
 class LoadingSpinnerWidget final : public nxui::Box {
@@ -127,8 +139,15 @@ private:
     float m_angle = 0.f;
 };
 
-class SettingRowBase : public nxui::Box {
+class SettingRowBase : public nxui::Box, public DepthScalable {
 public:
+    void setDepthScale(float scale) override {
+        if (std::abs(scale - m_depthScale) > 0.001f) {
+            m_depthScale = scale;
+            m_depthScaleDirty = true;
+        }
+    }
+
     SettingRowBase(SettingsScreen::SettingItem& item, const SettingWidgetContext& ctx)
         : nxui::Box(nxui::Axis::ROW)
         , m_item(item)
@@ -202,7 +221,7 @@ protected:
 
         if (m_cachedShowDesc && smallFont()) {
             const std::string fitted = fitTextToWidth(
-                smallFont(), m_item.description, 0.74f, leftRect.width);
+                smallFont(), m_item.description, 0.74f * m_depthScale, leftRect.width);
             if (fitted != m_displayedDescription) {
                 m_displayedDescription = fitted;
                 m_desc->setText(m_displayedDescription);
@@ -235,7 +254,8 @@ protected:
         const nxui::Theme* rowTheme = theme();
         const bool isSection = (m_item.type == SettingsScreen::ItemType::Section);
         const bool showDesc = !m_item.description.empty() && !isSection;
-        const float labelScale = isSection ? 0.82f : 0.94f;
+        const float labelScale = (isSection ? 0.82f : 0.94f) * m_depthScale;
+        const float descScale  = 0.74f * m_depthScale;
 
         if (rowFont != m_cachedFont) {
             m_cachedFont = rowFont;
@@ -270,6 +290,12 @@ protected:
             m_label->setScale(labelScale);
             m_labelMeasure = m_label->measureText();
         }
+        if (m_depthScaleDirty) {
+            m_depthScaleDirty = false;
+            m_desc->setScale(descScale);
+            m_descMeasure = m_desc->measureText();
+            m_displayedDescription.clear();  // refit at the new size
+        }
 
         if (rowTheme != m_cachedTheme || isSection != m_cachedIsSection) {
             m_cachedTheme = rowTheme;
@@ -283,6 +309,9 @@ protected:
         m_label->setOpacity(opacity());
         m_desc->setOpacity(opacity());
     }
+
+    float depthScale() const { return m_depthScale; }
+    const nxui::Vec2& labelMeasure() const { return m_labelMeasure; }  // already scaled
 
     SettingsScreen::SettingItem& m_item;
     SettingWidgetContext m_ctx;
@@ -304,6 +333,8 @@ private:
     std::string m_cachedDescText;
     std::string m_displayedDescription;
     float m_cachedLabelScale = -1.f;
+    float m_depthScale = 1.f;
+    bool m_depthScaleDirty = true;
     bool m_cachedShowDesc = false;
     bool m_cachedIsSection = false;
     nxui::Vec2 m_labelMeasure = {0.f, 0.f};
@@ -316,6 +347,23 @@ public:
 protected:
     void syncRight(const nxui::Rect&) override {
         m_right->setVisible(false);
+    }
+
+    void onRender(nxui::Renderer& ren) override {
+        SettingRowBase::onRender(ren);
+        const nxui::Theme* rowTheme = theme();
+        if (!rowTheme || opacity() <= 0.01f)
+            return;
+
+        const nxui::Rect r = rect();
+        const float textEnd = r.x + 10.f + labelMeasure().x + 14.f;
+        const float y = r.y + r.height * 0.62f;
+        if (textEnd < r.right() - 10.f) {
+            ren.drawLine({textEnd, y}, {r.right() - 10.f, y},
+                         rowTheme->panelBorder.withAlpha(0.34f * opacity()), 1.f);
+        }
+        ren.drawRoundedRect({r.x + 2.f, r.y + r.height * 0.34f, 3.f, r.height * 0.34f},
+                            rowTheme->cursorNormal.withAlpha(0.75f * opacity()), 1.5f);
     }
 };
 
@@ -385,7 +433,7 @@ public:
     }
 protected:
     float preferredRightWidth(float rowWidth) const override {
-        return std::max(120.f, rowWidth * 0.42f);
+        return settings::metrics::preferredRightWidth(settings::ControlKind::Toggle, rowWidth);
     }
 
     void syncRight(const nxui::Rect& rightRect) override {
@@ -404,16 +452,12 @@ protected:
             m_track->setBaseColor(bg.withAlpha(opacity()));
             m_knob->setBaseColor(nxui::Color(1.f, 1.f, 1.f, opacity()));
         }
-        float travel = 64.f - 8.f - 24.f;
-        nxui::Rect trackRect = {
-            rightRect.right() - 64.f,
-            rightRect.y + (rightRect.height - 32.f) * 0.5f,
-            64.f,
-            32.f
-        };
+        float travel = settings::metrics::kToggleW - 8.f - 24.f;
+        nxui::Rect trackRect = settings::metrics::controlRect(rect(), settings::ControlKind::Toggle);
         m_track->setRect(trackRect);
+        const float knobT = nxui::Easing::outBack(t);
         m_knob->setRect({
-            trackRect.x + 4.f + travel * t,
+            trackRect.x + 4.f + travel * knobT,
             trackRect.y + 4.f,
             24.f,
             24.f
@@ -459,7 +503,7 @@ public:
 
 protected:
     float preferredRightWidth(float rowWidth) const override {
-        return std::max(170.f, rowWidth * 0.42f);
+        return settings::metrics::preferredRightWidth(settings::ControlKind::Slider, rowWidth);
     }
 
     void syncRight(const nxui::Rect& rightRect) override {
@@ -467,9 +511,10 @@ protected:
         const nxui::Theme* rowTheme = theme();
 
         float t = std::clamp(m_item.anim01, 0.f, 1.f);
-        float pctW = 44.f;
-        float trackW = std::clamp(rightRect.width - pctW - 10.f, 110.f, 260.f);
+        const float pctW = settings::metrics::kSliderPctW;
 
+        nxui::Rect trackRect = settings::metrics::sliderTrackRect(rect());
+        float trackW = trackRect.width;
         float fillW = (trackW - kKnobW) * t;
 
         nxui::Rect pctRect = {
@@ -477,12 +522,6 @@ protected:
             rightRect.y,
             pctW,
             rightRect.height
-        };
-        nxui::Rect trackRect = {
-            pctRect.x - 10.f - trackW,
-            rightRect.y + (rightRect.height - 14.f) * 0.5f,
-            trackW,
-            14.f
         };
 
         if (rowTheme) {
@@ -492,6 +531,7 @@ protected:
             m_pct->setTextColor(rowTheme->textPrimary);
         }
 
+        m_pct->setScale(0.84f * depthScale());
         int pct = (int)std::round(t * 100.f);
         std::string pctText = m_item.infoText.empty() ? (std::to_string(pct) + "%") : m_item.infoText;
         if (pctText != m_cachedPctText) {
@@ -649,25 +689,23 @@ public:
     }
 protected:
     float preferredRightWidth(float rowWidth) const override {
-        return std::max(170.f, rowWidth * 0.38f);
+        return settings::metrics::preferredRightWidth(settings::ControlKind::Selector, rowWidth);
     }
 
     void syncRight(const nxui::Rect& rightRect) override {
         nxui::Font* rowSmallFont = smallFont();
         const nxui::Theme* rowTheme = theme();
+        (void)rightRect;
 
         int idx = std::clamp(m_item.intVal, 0, std::max(0, (int)m_item.options.size() - 1));
-        float w = std::max(170.f, rightRect.width);
-        float h = std::max(36.f, rect().height - 22.f);
-        nxui::Rect pillRect = {
-            rightRect.right() - w,
-            rightRect.y + (rightRect.height - h) * 0.5f,
-            w,
-            h
-        };
+        nxui::Rect pillRect = settings::metrics::controlRect(rect(), settings::ControlKind::Selector);
 
+        const float valueScale = 0.82f * depthScale();
+        m_value->setScale(valueScale);
+        const float textRoom = std::max(0.f, pillRect.width - 24.f
+                                             - settings::metrics::kChevronSize - 10.f);
         std::string text = m_item.options.empty() ? std::string() : m_item.options[idx];
-        text = fitTextToWidth(rowSmallFont, text, 0.82f, std::max(0.f, pillRect.width - 24.f));
+        text = fitTextToWidth(rowSmallFont, text, valueScale, textRoom);
         if (text != m_cachedValueText) {
             m_cachedValueText = text;
             m_value->setText(m_cachedValueText);
@@ -684,7 +722,22 @@ protected:
         }
         m_pill->setRect(pillRect);
         m_value->setOpacity(opacity());
-        m_value->setRect({pillRect.x + 12.f, pillRect.y, std::max(0.f, pillRect.width - 24.f), pillRect.height});
+        m_value->setRect({pillRect.x + 12.f, pillRect.y, textRoom, pillRect.height});
+    }
+
+    void onRender(nxui::Renderer& ren) override {
+        SettingRowBase::onRender(ren);
+        const nxui::Theme* rowTheme = theme();
+        if (!rowTheme || opacity() <= 0.01f)
+            return;
+
+        const nxui::Rect pill = settings::metrics::controlRect(rect(), settings::ControlKind::Selector);
+        const float size = settings::metrics::kChevronSize * depthScale();
+        drawChevron(ren,
+                    {pill.right() - 14.f - size * 0.5f, pill.y + pill.height * 0.5f},
+                    size,
+                    rowTheme->textSecondary.withAlpha(0.85f * opacity()),
+                    true);
     }
 private:
     std::shared_ptr<nxui::GlassBox> m_pill;
@@ -696,61 +749,31 @@ private:
 class ActionRowWidget final : public SettingRowBase {
 public:
     ActionRowWidget(SettingsScreen::SettingItem& item, const SettingWidgetContext& ctx)
-        : SettingRowBase(item, ctx) {
-        m_btn = std::make_shared<ActionButton>();
-        m_btn->setCornerRadius(9.f);
-
-        m_btnLabel = std::make_shared<nxui::Label>(item.label);
-        m_btnLabel->setScale(0.84f);
-        m_btnLabel->setHAlign(nxui::Label::HAlign::Center);
-        m_btnLabel->setVAlign(nxui::Label::VAlign::Center);
-        m_btnLabel->setGrow(1.f);
-        m_btn->addChild(m_btnLabel);
-        m_right->addChild(m_btn);
-    }
+        : SettingRowBase(item, ctx) {}
 protected:
     float preferredRightWidth(float rowWidth) const override {
-        return std::max(160.f, rowWidth * 0.42f);
+        return settings::metrics::preferredRightWidth(settings::ControlKind::Action, rowWidth);
     }
 
-    void syncRight(const nxui::Rect& rightRect) override {
-        nxui::Font* rowSmallFont = smallFont();
+    void syncRight(const nxui::Rect& rightRect) override { (void)rightRect; }
+
+    void onRender(nxui::Renderer& ren) override {
+        SettingRowBase::onRender(ren);
         const nxui::Theme* rowTheme = theme();
+        if (!rowTheme || opacity() <= 0.01f)
+            return;
 
-        if (rowSmallFont != m_cachedLabelFont) {
-            m_cachedLabelFont = rowSmallFont;
-            if (rowSmallFont)
-                m_btnLabel->setFont(rowSmallFont);
-        }
-        if (m_cachedButtonText != m_item.label) {
-            m_cachedButtonText = m_item.label;
-            m_btnLabel->setText(m_cachedButtonText);
-        }
-
-        m_btn->setTheme(rowTheme);
-        m_btn->setVisualState(opacity(), m_item.anim01, 1.f);
-        if (rowTheme) {
-            m_btnLabel->setTextColor(rowTheme->textPrimary);
-        }
-        float btnW = std::max(140.f, std::min(rightRect.width, rect().width * 0.30f));
-        float btnH = std::max(30.f, rect().height - 16.f);
-        nxui::Rect buttonRect = {
-            rightRect.right() - btnW,
-            rightRect.y + (rightRect.height - btnH) * 0.5f,
-            btnW,
-            btnH
-        };
-        m_btn->setRect(buttonRect);
-        m_btnLabel->setOpacity(opacity());
-        m_btnLabel->setRect({buttonRect.x + 12.f, buttonRect.y + 4.f,
-                             std::max(0.f, buttonRect.width - 24.f),
-                             std::max(0.f, buttonRect.height - 8.f)});
+        const nxui::Rect r = rect();
+        const float press = std::clamp(m_item.anim01, 0.f, 1.f);
+        const float size = settings::metrics::kChevronSize * depthScale();
+        drawChevron(ren,
+                    {r.right() - settings::metrics::kRowHorizontalInset - size * 0.5f
+                         + press * 4.f,
+                     r.y + r.height * 0.5f},
+                    size,
+                    rowTheme->textSecondary.withAlpha((0.70f + 0.30f * press) * opacity()),
+                    false);
     }
-private:
-    std::shared_ptr<ActionButton> m_btn;
-    std::shared_ptr<nxui::Label> m_btnLabel;
-    nxui::Font* m_cachedLabelFont = nullptr;
-    std::string m_cachedButtonText;
 };
 
 }
