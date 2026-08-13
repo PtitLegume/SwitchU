@@ -5,7 +5,44 @@
 #define SWITCHU_VERSION "unknown"
 #endif
 
-SettingsScreen::Tab settings::tabs::AboutTab::build(SettingsScreen& /* screen */) {
+namespace {
+
+std::vector<SettingsScreen::SettingItem> buildCreditsPage() {
+    using SettingItem = SettingsScreen::SettingItem;
+    using ItemType = SettingsScreen::ItemType;
+    auto& i18n = nxui::I18n::instance();
+    std::vector<SettingItem> page;
+
+    auto section = [&](const std::string& key, const std::string& fallback) {
+        SettingItem it;
+        it.label = i18n.tr(key, fallback);
+        it.type  = ItemType::Section;
+        page.push_back(std::move(it));
+    };
+    auto entry = [&](const std::string& label, const std::string& value) {
+        SettingItem it;
+        it.label = label;
+        it.type  = ItemType::Info;
+        it.infoText = value;
+        page.push_back(std::move(it));
+    };
+
+    section("settings.about.thanks", "Thanks");
+    entry("PoloNX", i18n.tr("settings.about.role_author", "Author"));
+    entry(i18n.tr("settings.about.contributors", "Contributors"),
+          i18n.tr("settings.about.contributors_value", "github.com/PoloNX/SwitchU"));
+    entry(i18n.tr("settings.about.translators", "Translators"),
+          i18n.tr("settings.about.translators_value", "8 languages"));
+
+    section("settings.about.inspiration", "Inspiration");
+    entry("Nintendo Wii U", i18n.tr("settings.about.inspiration_value", "HOME Menu"));
+
+    return page;
+}
+
+} // namespace
+
+SettingsScreen::Tab settings::tabs::AboutTab::build(SettingsScreen& screen) {
     using Tab = SettingsScreen::Tab;
     using SettingItem = SettingsScreen::SettingItem;
     using ItemType = SettingsScreen::ItemType;
@@ -48,21 +85,15 @@ SettingsScreen::Tab settings::tabs::AboutTab::build(SettingsScreen& /* screen */
         t.items.push_back(std::move(it));
     }
 
-    // Acknowledgements
     {
         SettingItem it;
         it.label = i18n.tr("settings.about.acknowledgements", "Acknowledgements");
-        it.type  = ItemType::Section;
-        t.items.push_back(std::move(it));
-    }
-
-    {
-        SettingItem it;
-        it.label = i18n.tr("settings.about.acknowledgements_desc",
-                           "Special thanks to everyone who contributed to this project.");
-        it.type  = ItemType::Info;
-        it.infoText = "";
-        it.wrapLabel = true;
+        it.description = i18n.tr("settings.about.acknowledgements_desc",
+                                 "The people behind this menu.");
+        it.type  = ItemType::Action;
+        it.onChange = [&screen](SettingItem&) {
+            screen.openDetailPage(buildCreditsPage());
+        };
         t.items.push_back(std::move(it));
     }
 
