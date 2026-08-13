@@ -50,8 +50,18 @@ void SettingsScreen::ensureTabLoaded(int tabIndex) {
         DebugLog::log("[settings] Bluetooth audio manager initialized on demand");
     }
 
-    m_tabs[static_cast<std::size_t>(tabIndex)] = makeLoadingTab(tabIndex);
+    assignTabContent(static_cast<std::size_t>(tabIndex), makeLoadingTab(tabIndex));
     startAsyncTabLoad(tabIndex);
+}
+
+void SettingsScreen::assignTabContent(std::size_t idx, Tab&& built) {
+    if (idx >= m_tabs.size())
+        return;
+    Tab& dst = m_tabs[idx];
+
+    if (built.name.empty())
+        built.name = dst.name;
+    dst = std::move(built);
 }
 
 SettingsScreen::Tab SettingsScreen::buildTabNow(int tabIndex) {
@@ -92,7 +102,6 @@ void SettingsScreen::startAsyncTabLoad(int tabIndex) {
     if (idx >= m_tabs.size())
         return;
 
-    // DebugLog::log("[settings] starting async tab load %d", tabIndex);
     m_loadingTabs[idx] = true;
     m_tabTasks[idx] = std::async(std::launch::async, [this, tabIndex]() {
         return buildTabNow(tabIndex);
@@ -109,7 +118,7 @@ void SettingsScreen::pollTabLoaders() {
             continue;
 
         Tab loaded = m_tabTasks[i].get();
-        m_tabs[i] = std::move(loaded);
+        assignTabContent(i, std::move(loaded));
         if (i < m_loadedTabs.size())
             m_loadedTabs[i] = true;
         m_loadingTabs[i] = false;
@@ -143,13 +152,12 @@ void SettingsScreen::prefetchOneTab() {
         if (m_loadedTabs[idx] || m_loadingTabs[idx])
             continue;
 
-        // Keep the optional btmsys client out of the normal menu/application
-        // handoff. Initialize it only when the user explicitly visits the tab.
+        // Initialized only on an explicit visit: btmsys must stay out of the handoff.
         if (idx == 7 && idx != static_cast<std::size_t>(m_tabIndex))
             continue;
 
         if (idx != static_cast<std::size_t>(m_tabIndex))
-            m_tabs[idx] = makeLoadingTab(static_cast<int>(idx));
+            assignTabContent(idx, makeLoadingTab(static_cast<int>(idx)));
         startAsyncTabLoad(static_cast<int>(idx));
         return;
     }

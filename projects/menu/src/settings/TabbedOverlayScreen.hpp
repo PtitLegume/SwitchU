@@ -6,6 +6,7 @@
 #include <nxui/core/Animation.hpp>
 #include <nxui/widgets/GlassWidget.hpp>
 #include "widgets/SelectionCursor.hpp"
+#include "SettingsLayout.hpp"
 #include <string>
 #include <vector>
 #include <functional>
@@ -96,6 +97,10 @@ public:
 
     enum class ItemType { Info, Toggle, Slider, Progress, Selector, Action, Section };
 
+    static bool isDataItem(ItemType type) {
+        return type == ItemType::Info || type == ItemType::Progress;
+    }
+
     struct SettingItem {
         std::string label;
         ItemType    type = ItemType::Info;
@@ -125,6 +130,10 @@ public:
         std::function<void(Tab&, TabbedOverlayScreen&)> onUpdate;
     };
 
+    void openDetailPage(std::vector<SettingItem> items);
+    bool closeDetailPage();
+    bool detailOpen() const { return m_detailOpen; }
+
 protected:
     virtual void buildTabs() = 0;
     virtual void ensureTabLoaded(int tabIndex) { (void)tabIndex; }
@@ -141,6 +150,8 @@ protected:
     virtual bool handleCustomTouch(nxui::Input&, const nxui::Rect&, const nxui::Rect&, const nxui::Rect&) { return false; }
     virtual float overlayHeaderHeight() const { return 0.f; }
     virtual float overlayTabWidth() const { return kTabWidth; }
+    virtual bool usesHorizontalTabRail() const { return false; }
+    virtual float overlayPanelMargin() const { return kPanelMargin; }
     virtual void drawOverlayHeader(nxui::Renderer&, const nxui::Rect&, float) {}
 
     void onRender(nxui::Renderer& ren) override;
@@ -156,6 +167,11 @@ protected:
     void onNavDown();
     void onNavLeft();
     void onNavRight();
+    bool switchTab(int dir);
+    bool enterContentFromTabs();
+    void flipTab(int dir);   // ZL/ZR, with the rail arrow feedback
+    float m_railArrowKick[2] { 0.f, 0.f };
+    static constexpr float kRailArrowKickDur = 0.30f;
     void scrollToFocused();
     void announceCurrentFocus();
     void announceCurrentValue();
@@ -186,16 +202,50 @@ protected:
     int       m_contentIdx  = 0;
     float     m_scrollY     = 0.f;
     float     m_scrollTarget = 0.f;
+
+    mutable settings::SettingsLayout m_layout;
+    struct LayoutKey {
+        nxui::Rect panel{};
+        int   tabIndex  = -1;
+        int   itemCount = -1;
+        int   revision  = -1;
+        float scrollY   = 0.f;
+        int   dropdownRawIdx = -1;
+        float dropdownVisualStart = 0.f;
+        bool  detail    = false;   // a detail page of equal length is not the tab
+        bool operator==(const LayoutKey& o) const {
+            return panel.x == o.panel.x && panel.y == o.panel.y
+                && panel.width == o.panel.width && panel.height == o.panel.height
+                && detail == o.detail
+                && tabIndex == o.tabIndex && itemCount == o.itemCount
+                && revision == o.revision && scrollY == o.scrollY
+                && dropdownRawIdx == o.dropdownRawIdx
+                && dropdownVisualStart == o.dropdownVisualStart;
+        }
+    };
+    mutable LayoutKey m_layoutKey;
+    mutable bool m_layoutValid = false;
+    int m_layoutRevision = 0;
+
     bool      m_backdropCacheValid = false;
     float     m_cachedPreBlurRadius = -1.f;
     int       m_cachedBlurIterations = -1;
+
+    std::vector<SettingItem>& currentItems();
+    const std::vector<SettingItem>& currentItems() const;
+
+    bool m_detailOpen = false;
+    std::vector<SettingItem> m_detailItems;
+    std::vector<SettingItem> m_noItems;
 
     int rawIndexFromFocusable(int focIdx) const;
     int focusableCount() const;
     bool itemFocusable(const SettingItem& item) const;
     bool tabIsTextOnly() const;
+    bool listIsDataOnly() const;
     void clampContentIdx();
     float visibilityProgress() const;
+    float panelPopProgress() const;  // may exceed 1 while the panel pops open
     void syncPanelState(float eased);
     void invalidateBackdropCache();
 
@@ -204,14 +254,21 @@ protected:
     float itemHeight(const SettingItem& item, float contentWidth) const;
     static constexpr float kRowHeight     = 68.f;
     static constexpr float kSectionHeight = 48.f;
-    static constexpr float kTabRowHeight  = 58.f;
+    static constexpr float kTabRowHeight  = settings::metrics::kTabRowHeight;
     static constexpr float kPanelRadius   = 26.f;
     static constexpr float kInnerPad      = 30.f;
+    float m_panelRadius = kPanelRadius;
+    bool  isFullBleed() const { return m_panelRadius <= 0.5f; }
 
-    // Staggered reveal of the content rows after a tab switch.
+    const settings::SettingsLayout& layout() const;
+    void invalidateLayout() { m_layoutRevision++; }
+    static settings::ControlKind controlKindFor(ItemType type);
+    nxui::Color currentAccent() const;
+
     static constexpr float kRowStaggerDelay = 0.035f;   // between two rows
-    static constexpr float kRowRevealDur    = 0.24f;    // per row
+    static constexpr float kRowRevealDur    = 0.28f;    // per row
     static constexpr float kContentStaggerDone = 99.f;
+    static constexpr float kRowRevealSlideX = 26.f;
 
     nxui::Rect panelRect() const;
     nxui::Rect panelRect(float scale) const;
@@ -223,6 +280,8 @@ protected:
 
     void drawBackground(nxui::Renderer& ren, const nxui::Rect& panel, float opacity);
     void drawTabs(nxui::Renderer& ren, const nxui::Rect& panel, float opacity);
+    void drawRailArrows(nxui::Renderer& ren, const settings::SettingsLayout& layout,
+                        float opacity);
     void drawContent(nxui::Renderer& ren, const nxui::Rect& panel, float opacity);
     void drawDropdown(nxui::Renderer& ren, const nxui::Rect& panel, float opacity);
     void drawTrackChangedToast(nxui::Renderer& ren, const nxui::Rect& panel, float opacity);
@@ -248,8 +307,6 @@ protected:
     int   m_tabSwitchDir    = 0;
     nxui::AnimatedFloat m_contentSlideAnim;
     nxui::AnimatedFloat m_tabAccentW;
-    // Seconds since the last tab switch, driving the staggered row reveal.
-    // Starts finished so rows are never hidden outside a switch.
     float m_contentStaggerT = kContentStaggerDone;
 
     bool m_dropdownOpen = false;

@@ -74,6 +74,10 @@ protected:
     void ensureTabLoaded(int tabIndex) override;
     void onContentUpdate(float dt) override;
 
+    bool usesHorizontalTabRail() const override { return true; }
+    
+    float overlayPanelMargin() const override { return 0.f; }
+
 private:
     friend class settings::tabs::SystemTab;
     friend class settings::tabs::AccessibilityTab;
@@ -124,6 +128,8 @@ private:
 
     Tab buildTabNow(int tabIndex);
     Tab makeLoadingTab(int tabIndex) const;
+    // Every replacement of a Tab must go through here, or the rail loses its name.
+    void assignTabContent(std::size_t idx, Tab&& built);
     void startAsyncTabLoad(int tabIndex);
     void pollTabLoaders();
     void prefetchOneTab();
