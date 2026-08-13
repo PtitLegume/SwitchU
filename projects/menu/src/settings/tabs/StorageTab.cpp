@@ -250,33 +250,24 @@ SettingsScreen::Tab settings::tabs::StorageTab::build(SettingsScreen& screen) {
     bool internalOk = queryStorageSize(NcmStorageId_BuiltInUser, internalTotal, internalFree);
     uint64_t internalUsed = internalOk ? (internalTotal - internalFree) : 0;
 
-    auto makeStorageSummary = [&](const std::string& totalText, const std::string& freeText, const std::string& usedText) {
-        return fmt::format("{}: {} • {}: {} • {}: {}",
-                           i18n.tr("settings.storage.capacity", "Capacity"), totalText,
-                           i18n.tr("settings.storage.available", "Available"), freeText,
-                           i18n.tr("settings.storage.used", "Used"), usedText);
+    // The bar carries its own figures; a separate summary row read as clutter.
+    auto makeStorageDetails = [&](uint64_t used, uint64_t total, uint64_t free) {
+        return fmt::format("{}: {} / {}  ·  {}: {}",
+                           i18n.tr("settings.storage.used", "Used"),
+                           formatBytes(used), formatBytes(total),
+                           i18n.tr("settings.storage.available", "Available"),
+                           formatBytes(free));
     };
 
     SettingItem internalBar;
     internalBar.label = i18n.tr("settings.storage.internal", "System Memory");
     internalBar.type = ItemType::Progress;
     internalBar.description = internalOk
-        ? i18n.tr("settings.storage.internal_desc", "Shows used system memory and available storage.")
+        ? makeStorageDetails(internalUsed, internalTotal, internalFree)
         : i18n.tr("settings.storage.internal_unavailable", "Unable to query internal storage.");
     internalBar.floatVal = internalOk && internalTotal > 0 ? float((double)internalUsed / internalTotal) : 0.f;
     internalBar.anim01 = internalBar.floatVal;
-    internalBar.infoText = internalOk
-        ? fmt::format("{} / {}", formatBytes(internalUsed), formatBytes(internalTotal))
-        : i18n.tr("common.na", "N/A");
     t.items.push_back(std::move(internalBar));
-
-    SettingItem internalSummary;
-    internalSummary.label = i18n.tr("settings.storage.summary", "Summary");
-    internalSummary.type = ItemType::Info;
-    internalSummary.infoText = internalOk
-        ? makeStorageSummary(formatBytes(internalTotal), formatBytes(internalFree), formatBytes(internalUsed))
-        : i18n.tr("common.na", "N/A");
-    t.items.push_back(std::move(internalSummary));
 
     uint64_t sdTotal = 0;
     uint64_t sdFree  = 0;
@@ -287,22 +278,11 @@ SettingsScreen::Tab settings::tabs::StorageTab::build(SettingsScreen& screen) {
     sdBar.label = i18n.tr("settings.storage.sd", "microSD Card");
     sdBar.type  = ItemType::Progress;
     sdBar.description = sdOk
-        ? i18n.tr("settings.storage.sd_desc", "Shows used microSD storage and available storage.")
+        ? makeStorageDetails(sdUsed, sdTotal, sdFree)
         : i18n.tr("settings.storage.sd_unavailable", "No microSD card detected or access denied.");
     sdBar.floatVal = sdOk && sdTotal > 0 ? float((double)sdUsed / sdTotal) : 0.f;
     sdBar.anim01 = sdBar.floatVal;
-    sdBar.infoText = sdOk
-        ? fmt::format("{} / {}", formatBytes(sdUsed), formatBytes(sdTotal))
-        : i18n.tr("common.na", "N/A");
     t.items.push_back(std::move(sdBar));
-
-    SettingItem sdSummary;
-    sdSummary.label = i18n.tr("settings.storage.summary", "Summary");
-    sdSummary.type = ItemType::Info;
-    sdSummary.infoText = sdOk
-        ? makeStorageSummary(formatBytes(sdTotal), formatBytes(sdFree), formatBytes(sdUsed))
-        : i18n.tr("common.na", "N/A");
-    t.items.push_back(std::move(sdSummary));
 
     struct AppEntry {
         uint64_t titleId;
@@ -426,5 +406,7 @@ SettingsScreen::Tab settings::tabs::StorageTab::build(SettingsScreen& screen) {
             });
     };
 
+    // No extractReadouts(): onChange holds references into t.items, kept valid
+    // by the reserve() above; moving those rows out would dangle them.
     return t;
 }

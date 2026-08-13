@@ -327,10 +327,8 @@
     },
     "storage": {
       "internal": "Mémoire système",
-      "internal_desc": "Affiche la mémoire système utilisée et l'espace libre.",
       "internal_unavailable": "Impossible de lire le stockage interne.",
       "sd": "Carte microSD",
-      "sd_desc": "Affiche le stockage utilisé sur la carte microSD et l'espace libre.",
       "sd_unavailable": "Aucune carte microSD détectée ou accès refusé.",
       "available": "Disponible",
       "state_installed": "Installé",
@@ -352,9 +350,7 @@
       "location_sd": "microSD",
       "location_system": "Système",
       "size_unknown": "Taille inconnue",
-      "capacity": "Capacité",
       "used": "Utilisé",
-      "summary": "Résumé",
       "details": "Détails",
       "delete": "Supprimer"
     },

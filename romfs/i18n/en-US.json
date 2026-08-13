@@ -327,10 +327,8 @@
     },
     "storage": {
       "internal": "System Memory",
-      "internal_desc": "Shows used system memory and free space.",
       "internal_unavailable": "Unable to query internal storage.",
       "sd": "microSD Card",
-      "sd_desc": "Shows used microSD storage and free space.",
       "sd_unavailable": "No microSD card detected or access denied.",
       "available": "Available",
       "state_installed": "Installed",
@@ -352,9 +350,7 @@
       "location_sd": "microSD",
       "location_system": "System",
       "size_unknown": "Unknown size",
-      "capacity": "Capacity",
       "used": "Used",
-      "summary": "Summary",
       "details": "Details",
       "delete": "Delete"
     },

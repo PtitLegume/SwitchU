@@ -175,10 +175,8 @@
     },
     "storage": {
       "internal": "Systeemgeheugen",
-      "internal_desc": "Toont gebruikt systeemgeheugen en vrije opslagruimte.",
       "internal_unavailable": "Kan interne opslag niet opvragen.",
       "sd": "microSD-kaart",
-      "sd_desc": "Toont gebruikt microSD-opslag en vrije opslagruimte.",
       "sd_unavailable": "Geen microSD-kaart gedetecteerd of toegang geweigerd.",
       "available": "Beschikbaar",
       "state_installed": "Geïnstalleerd",
@@ -200,9 +198,7 @@
       "location_sd": "microSD",
       "location_system": "Systeem",
       "size_unknown": "Onbekende grootte",
-      "capacity": "Capaciteit",
       "used": "Gebruikt",
-      "summary": "Samenvatting",
       "details": "Details",
       "delete": "Verwijderen"
     },
